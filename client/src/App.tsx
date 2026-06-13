@@ -15,6 +15,10 @@ import {
   TagsOutlined,
   CalculatorOutlined,
   DollarOutlined,
+  FundProjectionScreenOutlined,
+  LockOutlined,
+  AuditOutlined,
+  TeamOutlined,
 } from '@ant-design/icons';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import Dashboard from './pages/Dashboard';
@@ -32,6 +36,10 @@ import AuditLogs from './pages/AuditLogs';
 import RenewalTrial from './pages/RenewalTrial';
 import RefundTrial from './pages/RefundTrial';
 import BatchRenewal from './pages/BatchRenewal';
+import SpaceLifecycle from './pages/SpaceLifecycle';
+import FiscalPeriodMgmt from './pages/FiscalPeriodMgmt';
+import AdjustmentOrderList from './pages/AdjustmentOrderList';
+import WaitlistManagement from './pages/WaitlistManagement';
 
 const { Header, Sider, Content } = Layout;
 
@@ -47,15 +55,19 @@ const App: React.FC = () => {
     { key: '/', icon: <DashboardOutlined />, label: '工作台' },
     { key: '/expiring', icon: <ClockCircleOutlined />, label: '到期队列' },
     { key: '/parking-pool', icon: <BgColorsOutlined />, label: '车位池' },
+    { key: '/space-lifecycle', icon: <FundProjectionScreenOutlined />, label: '生命周期' },
     { key: '/leases', icon: <FileTextOutlined />, label: '租约管理' },
     { key: '/arrears', icon: <WarningOutlined />, label: '欠费管理' },
     { key: '/tenants', icon: <UserOutlined />, label: '租户管理' },
     { key: '/vehicles', icon: <CarOutlined />, label: '车辆管理' },
     { key: '/space-swaps', icon: <SwapOutlined />, label: '调换审批' },
+    { key: '/waitlist', icon: <TeamOutlined />, label: '候补管理' },
     { key: '/renewal-trial', icon: <CalculatorOutlined />, label: '续费试算' },
     { key: '/refund-trial', icon: <DollarOutlined />, label: '退款试算' },
     { key: '/batch-renewal', icon: <ThunderboltOutlined />, label: '批量处理' },
     { key: '/invoices', icon: <FileDoneOutlined />, label: '发票管理' },
+    { key: '/adjustment-orders', icon: <AuditOutlined />, label: '调整单' },
+    { key: '/fiscal-periods', icon: <LockOutlined />, label: '收费关账' },
     { key: '/price-tiers', icon: <TagsOutlined />, label: '阶梯价管理' },
     { key: '/audit-logs', icon: <HistoryOutlined />, label: '审计日志' },
   ];
@@ -89,16 +101,20 @@ const App: React.FC = () => {
               <Route path="/" element={<Dashboard />} />
               <Route path="/expiring" element={<ExpiringQueue />} />
               <Route path="/parking-pool" element={<ParkingSpacePool />} />
+              <Route path="/space-lifecycle" element={<SpaceLifecycle />} />
               <Route path="/leases" element={<LeaseManagement />} />
               <Route path="/leases/:id" element={<LeaseDetail />} />
               <Route path="/arrears" element={<ArrearsManagement />} />
               <Route path="/tenants" element={<TenantManagement />} />
               <Route path="/vehicles" element={<VehicleManagement />} />
               <Route path="/space-swaps" element={<SpaceSwapApproval />} />
+              <Route path="/waitlist" element={<WaitlistManagement />} />
               <Route path="/renewal-trial" element={<RenewalTrial />} />
               <Route path="/refund-trial" element={<RefundTrial />} />
               <Route path="/batch-renewal" element={<BatchRenewal />} />
               <Route path="/invoices" element={<InvoiceManagement />} />
+              <Route path="/adjustment-orders" element={<AdjustmentOrderList />} />
+              <Route path="/fiscal-periods" element={<FiscalPeriodMgmt />} />
               <Route path="/price-tiers" element={<PriceTierManagement />} />
               <Route path="/audit-logs" element={<AuditLogs />} />
             </Routes>

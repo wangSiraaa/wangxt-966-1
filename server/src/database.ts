@@ -284,6 +284,93 @@ export async function initDatabase(): Promise<void> {
         created_at TEXT NOT NULL,
         FOREIGN KEY (lease_id) REFERENCES leases(id)
       );
+
+      CREATE TABLE IF NOT EXISTS fiscal_periods (
+        id TEXT PRIMARY KEY,
+        period_name TEXT NOT NULL,
+        start_date TEXT NOT NULL,
+        end_date TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'open',
+        closed_by TEXT,
+        closed_at TEXT,
+        remark TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS adjustment_orders (
+        id TEXT PRIMARY KEY,
+        lease_id TEXT NOT NULL,
+        tenant_id TEXT NOT NULL,
+        space_id TEXT NOT NULL,
+        order_type TEXT NOT NULL,
+        amount REAL NOT NULL,
+        reason TEXT,
+        status TEXT NOT NULL DEFAULT 'pending',
+        approved_by TEXT,
+        approved_at TEXT,
+        fiscal_period_id TEXT,
+        remark TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (lease_id) REFERENCES leases(id),
+        FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+        FOREIGN KEY (space_id) REFERENCES parking_spaces(id)
+      );
+
+      CREATE TABLE IF NOT EXISTS waitlist (
+        id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL,
+        vehicle_id TEXT NOT NULL,
+        preferred_type TEXT,
+        preferred_location TEXT,
+        status TEXT NOT NULL DEFAULT 'waiting',
+        priority INTEGER NOT NULL DEFAULT 0,
+        assigned_space_id TEXT,
+        assigned_at TEXT,
+        remark TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+        FOREIGN KEY (vehicle_id) REFERENCES vehicles(id)
+      );
+
+      CREATE TABLE IF NOT EXISTS space_lifecycle_log (
+        id TEXT PRIMARY KEY,
+        space_id TEXT NOT NULL,
+        event_type TEXT NOT NULL,
+        event_data TEXT,
+        lease_id TEXT,
+        tenant_id TEXT,
+        operator TEXT,
+        remark TEXT,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (space_id) REFERENCES parking_spaces(id)
+      );
+
+      CREATE TABLE IF NOT EXISTS plate_change_logs (
+        id TEXT PRIMARY KEY,
+        lease_id TEXT NOT NULL,
+        vehicle_id TEXT NOT NULL,
+        old_plate_no TEXT NOT NULL,
+        new_plate_no TEXT NOT NULL,
+        reason TEXT,
+        operator TEXT,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (lease_id) REFERENCES leases(id),
+        FOREIGN KEY (vehicle_id) REFERENCES vehicles(id)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_fiscal_periods_dates ON fiscal_periods(start_date, end_date);
+      CREATE INDEX IF NOT EXISTS idx_fiscal_periods_status ON fiscal_periods(status);
+      CREATE INDEX IF NOT EXISTS idx_adjustment_orders_lease ON adjustment_orders(lease_id);
+      CREATE INDEX IF NOT EXISTS idx_adjustment_orders_type ON adjustment_orders(order_type);
+      CREATE INDEX IF NOT EXISTS idx_adjustment_orders_status ON adjustment_orders(status);
+      CREATE INDEX IF NOT EXISTS idx_waitlist_tenant ON waitlist(tenant_id);
+      CREATE INDEX IF NOT EXISTS idx_waitlist_status ON waitlist(status);
+      CREATE INDEX IF NOT EXISTS idx_space_lifecycle_space ON space_lifecycle_log(space_id);
+      CREATE INDEX IF NOT EXISTS idx_space_lifecycle_time ON space_lifecycle_log(created_at);
+      CREATE INDEX IF NOT EXISTS idx_plate_change_lease ON plate_change_logs(lease_id);
     `);
 
     saveDatabase();

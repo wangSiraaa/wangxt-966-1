@@ -14,6 +14,10 @@ import invoiceRoutes from './routes/invoice.routes';
 import spaceSwapRoutes from './routes/spaceSwap.routes';
 import priceTierRoutes from './routes/priceTier.routes';
 import auditLogRoutes from './routes/auditLog.routes';
+import fiscalPeriodRoutes from './routes/fiscalPeriod.routes';
+import adjustmentOrderRoutes from './routes/adjustmentOrder.routes';
+import waitlistRoutes from './routes/waitlist.routes';
+import lifecycleRoutes from './routes/lifecycle.routes';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -35,6 +39,10 @@ app.use('/api/invoices', invoiceRoutes);
 app.use('/api/space-swaps', spaceSwapRoutes);
 app.use('/api/price-tiers', priceTierRoutes);
 app.use('/api/audit-logs', auditLogRoutes);
+app.use('/api/fiscal-periods', fiscalPeriodRoutes);
+app.use('/api/adjustment-orders', adjustmentOrderRoutes);
+app.use('/api/waitlist', waitlistRoutes);
+app.use('/api/lifecycle', lifecycleRoutes);
 
 const clientDist = path.join(__dirname, '..', '..', 'client', 'dist');
 app.use(express.static(clientDist));

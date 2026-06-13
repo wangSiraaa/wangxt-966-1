@@ -56,6 +56,11 @@ router.get('/:id/can-renew', (req, res) => {
   res.json(successResponse(result));
 });
 
+router.get('/:id/validate-renew', (req, res) => {
+  const result = LeaseService.validateRenew(req.params.id);
+  res.json(successResponse(result));
+});
+
 router.get('/:id/renewal-price', (req, res) => {
   const { months } = req.query;
   const result = LeaseService.calculateRenewalPrice(

@@ -6,6 +6,8 @@ import { TenantService } from './tenant.service';
 import { VehicleService } from './vehicle.service';
 import { ArrearsService } from './arrears.service';
 import { PriceTierService } from './priceTier.service';
+import { LifecycleService } from './lifecycle.service';
+import { FiscalPeriodService } from './fiscalPeriod.service';
 
 export class LeaseService {
   static getAll(params?: {
@@ -158,7 +160,15 @@ export class LeaseService {
       return { can: false, reason: '车位已冻结，无法续费' };
     }
 
+    if (FiscalPeriodService.isPeriodClosed(lease.end_date)) {
+      return { can: false, reason: '租约结束日期所在会计期间已关账，无法续费' };
+    }
+
     return { can: true };
+  }
+
+  static validateRenew(leaseId: string) {
+    return LifecycleService.validateForRenew(leaseId);
   }
 
   static create(data: {
@@ -229,6 +239,8 @@ export class LeaseService {
     addLeaseTimeline(id, 'create', data, 'admin', '创建租约');
     auditLog('admin', 'create', 'lease', id, null, { ...data, total_amount: totalAmount }, '创建租约');
 
+    LifecycleService.addSpaceLifecycleEvent(data.space_id, 'lease_create', { lease_id: id, monthly_price: data.monthly_price }, id, data.tenant_id, 'admin', '创建租约');
+
     return { success: true, lease: this.getById(id)! };
   }
 
@@ -276,6 +288,8 @@ export class LeaseService {
     addLeaseTimeline(leaseId, 'renewed', { new_lease_id: id, months }, 'admin', '被续费');
     auditLog('admin', 'renew', 'lease', id, null, { parent_lease_id: leaseId, months, total_amount: totalAmount }, '租约续费');
 
+    LifecycleService.addSpaceLifecycleEvent(lease.space_id, 'lease_renew', { new_lease_id: id, months, total_amount: totalAmount }, id, lease.tenant_id, 'admin', '续费租约');
+
     return { success: true, lease: this.getById(id)! };
   }
 
@@ -299,6 +313,8 @@ export class LeaseService {
 
     addLeaseTimeline(leaseId, 'confirm_contract', null, 'admin', '确认合同');
     auditLog('admin', 'confirm', 'lease', leaseId, lease, this.getById(leaseId), '确认合同');
+
+    LifecycleService.addSpaceLifecycleEvent(lease.space_id, 'contract_confirmed', { lease_id: leaseId }, leaseId, lease.tenant_id, 'admin', '确认合同');
 
     return { success: true, lease: this.getById(leaseId)! };
   }
@@ -324,6 +340,8 @@ export class LeaseService {
 
     addLeaseTimeline(leaseId, 'cancel', { reason }, 'admin', '取消租约');
     auditLog('admin', 'cancel', 'lease', leaseId, lease, this.getById(leaseId), `取消租约: ${reason || '无原因'}`);
+
+    LifecycleService.addSpaceLifecycleEvent(lease.space_id, 'lease_cancel', { reason }, leaseId, lease.tenant_id, 'admin', '取消租约');
 
     return { success: true, lease: this.getById(leaseId)! };
   }
@@ -375,6 +393,8 @@ export class LeaseService {
     addLeaseTimeline(leaseId, 'terminate', { refund_amount: refundResult.refundAmount, reason }, 'admin', '退租');
     auditLog('admin', 'terminate', 'lease', leaseId, lease, null, `退租: ${reason || '无原因'}, 退款: ${refundResult.refundAmount}`);
 
+    LifecycleService.addSpaceLifecycleEvent(lease.space_id, 'lease_terminate', { refund_amount: refundResult.refundAmount, reason }, leaseId, lease.tenant_id, 'admin', '退租释放车位');
+
     return { success: true, refundAmount: refundResult.refundAmount };
   }
 
@@ -392,8 +412,10 @@ export class LeaseService {
         ParkingSpaceService.update(lease.space_id, { status: 'available' } as any);
         recovered++;
         addLeaseTimeline(lease.id, 'expired_recovered', null, 'system', '过期30天，车位回收至可分配池');
+        LifecycleService.addSpaceLifecycleEvent(lease.space_id, 'expired_recovered', null, lease.id, lease.tenant_id, 'system', '过期30天，车位回收至可分配池');
       } else {
         addLeaseTimeline(lease.id, 'expired', null, 'system', '租约到期');
+        LifecycleService.addSpaceLifecycleEvent(lease.space_id, 'lease_expired', null, lease.id, lease.tenant_id, 'system', '租约到期');
       }
     }
 
@@ -404,7 +426,13 @@ export class LeaseService {
     success: boolean;
     successful: { leaseId: string; newLeaseId: string }[];
     failed: { leaseId: string; reason: string }[];
+    conflicts?: { leaseId1: string; leaseId2: string; spaceId: string }[];
   } {
+    const conflictCheck = LifecycleService.checkBatchRenewalConflicts(leaseIds);
+    if (conflictCheck.hasConflicts) {
+      return { success: false, successful: [], failed: [], conflicts: conflictCheck.conflicts };
+    }
+
     const successful: { leaseId: string; newLeaseId: string }[] = [];
     const failed: { leaseId: string; reason: string }[] = [];
 

@@ -149,3 +149,85 @@ export interface PaginationResult<T> {
   page: number;
   pageSize: number;
 }
+
+export interface FiscalPeriod {
+  id: string;
+  period_name: string;
+  start_date: string;
+  end_date: string;
+  status: 'open' | 'closed';
+  closed_by?: string;
+  closed_at?: string;
+  remark?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdjustmentOrder {
+  id: string;
+  lease_id: string;
+  tenant_id: string;
+  space_id: string;
+  order_type: 'price_diff' | 'refund' | 'late_fee';
+  amount: number;
+  reason?: string;
+  status: 'pending' | 'approved' | 'rejected' | 'completed';
+  approved_by?: string;
+  approved_at?: string;
+  fiscal_period_id?: string;
+  remark?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WaitlistEntry {
+  id: string;
+  tenant_id: string;
+  vehicle_id: string;
+  preferred_type?: string;
+  preferred_location?: string;
+  status: 'waiting' | 'assigned' | 'cancelled';
+  priority: number;
+  assigned_space_id?: string;
+  assigned_at?: string;
+  remark?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SpaceLifecycleLog {
+  id: string;
+  space_id: string;
+  event_type: string;
+  event_data?: string;
+  lease_id?: string;
+  tenant_id?: string;
+  operator?: string;
+  remark?: string;
+  created_at: string;
+}
+
+export interface PlateChangeLog {
+  id: string;
+  lease_id: string;
+  vehicle_id: string;
+  old_plate_no: string;
+  new_plate_no: string;
+  reason?: string;
+  operator?: string;
+  created_at: string;
+}
+
+export interface ValidationCheck {
+  pass: boolean;
+  field: string;
+  message: string;
+  severity: 'error' | 'warning';
+}
+
+export interface ValidationContext {
+  checks: ValidationCheck[];
+  canProceed: boolean;
+  warnings: string[];
+  errors: string[];
+}

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Row, Col, Card, Tag, Statistic, Modal, Button, Space, Input, Select, message, Form, Popconfirm } from 'antd';
-import { SearchOutlined, LockOutlined, UnlockOutlined, StopOutlined } from '@ant-design/icons';
+import { SearchOutlined, LockOutlined, UnlockOutlined, StopOutlined, FundProjectionScreenOutlined } from '@ant-design/icons';
+import { useNavigate } from 'react-router-dom';
 import api from '../api';
 
 const { Option } = Select;
@@ -21,6 +22,7 @@ const ParkingSpacePool: React.FC = () => {
   const [detailModal, setDetailModal] = useState(false);
   const [selectedSpace, setSelectedSpace] = useState<any>(null);
   const [activeLease, setActiveLease] = useState<any>(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     loadData();
@@ -125,6 +127,9 @@ const ParkingSpacePool: React.FC = () => {
       <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h2>车位池</h2>
         <Space>
+          <Button icon={<FundProjectionScreenOutlined />} onClick={() => navigate('/space-lifecycle')}>
+            生命周期回放
+          </Button>
           <Input
             placeholder="搜索车位编号"
             prefix={<SearchOutlined />}
@@ -237,6 +242,16 @@ const ParkingSpacePool: React.FC = () => {
             )}
 
             <Space wrap>
+              <Button
+                icon={<FundProjectionScreenOutlined />}
+                onClick={() => {
+                  setDetailModal(false);
+                  navigate(`/space-lifecycle?spaceId=${selectedSpace.id}`);
+                }}
+              >
+                生命周期回放
+              </Button>
+
               {selectedSpace.status === 'frozen' ? (
                 <Button type="primary" icon={<StopOutlined />} onClick={handleUnfreeze}>
                   解冻
