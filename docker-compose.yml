@@ -1,29 +1,17 @@
+version: '3.8'
+
 services:
-  server:
-    build:
-      context: .
-      dockerfile: Dockerfile.server
-    container_name: parking-server
-    restart: always
+  parking-lease:
+    build: .
+    container_name: parking-lease-system
     ports:
       - "3001:3001"
     volumes:
-      - parking-data:/app/data
+      - parking-data:/app/server/data
     environment:
       - NODE_ENV=production
       - PORT=3001
-      - DB_PATH=/app/data/parking.db
-
-  client:
-    build:
-      context: .
-      dockerfile: Dockerfile.client
-    container_name: parking-client
-    restart: always
-    ports:
-      - "8080:80"
-    depends_on:
-      - server
+    restart: unless-stopped
 
 volumes:
   parking-data:

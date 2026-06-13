@@ -1,0 +1,16 @@
+node_modules
+dist
+build
+data
+*.db
+*.sqlite
+npm-debug.log
+yarn-error.log
+.env
+.env.local
+.git
+.gitignore
+README.md
+.idea
+.vscode
+.DS_Store
