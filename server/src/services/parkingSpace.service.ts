@@ -1,6 +1,7 @@
 import { db } from '../database';
 import { ParkingSpace } from '../types';
 import { generateId, now, auditLog } from '../utils';
+import { LifecycleService } from './lifecycle.service';
 
 export class ParkingSpaceService {
   static getAll(params?: { status?: string; type?: string; keyword?: string }): ParkingSpace[] {
@@ -59,6 +60,7 @@ export class ParkingSpaceService {
       time
     );
     auditLog('admin', 'create', 'parking_space', id, null, data, '创建车位');
+    LifecycleService.addSpaceLifecycleEvent(id, 'space_created', { code: data.code, type: data.type, location: data.location }, undefined, undefined, 'admin', '车位创建入库');
     return this.getById(id)!;
   }
 
@@ -86,7 +88,9 @@ export class ParkingSpaceService {
     if (!space) return undefined;
     if (space.status === 'frozen') return space;
 
-    return this.update(id, { status: 'frozen', frozen_reason: reason } as any);
+    const result = this.update(id, { status: 'frozen', frozen_reason: reason } as any);
+    LifecycleService.addSpaceLifecycleEvent(id, 'space_frozen', { reason }, undefined, undefined, 'admin', `车位冻结: ${reason}`);
+    return result;
   }
 
   static unfreeze(id: string): ParkingSpace | undefined {
@@ -94,7 +98,9 @@ export class ParkingSpaceService {
     if (!space) return undefined;
     if (space.status !== 'frozen') return space;
 
-    return this.update(id, { status: 'available', frozen_reason: null } as any);
+    const result = this.update(id, { status: 'available', frozen_reason: null } as any);
+    LifecycleService.addSpaceLifecycleEvent(id, 'space_unfrozen', {}, undefined, undefined, 'admin', '车位解冻');
+    return result;
   }
 
   static setLock(id: string, lockStatus: 'locked' | 'unlocked'): ParkingSpace | undefined {

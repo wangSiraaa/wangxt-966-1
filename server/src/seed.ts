@@ -5,6 +5,7 @@ import { VehicleService } from './services/vehicle.service';
 import { LeaseService } from './services/lease.service';
 import { ArrearsService } from './services/arrears.service';
 import { PriceTierService } from './services/priceTier.service';
+import { LifecycleService } from './services/lifecycle.service';
 import { today, addDays, addMonths, daysBetween } from './utils';
 
 async function seedDatabase() {
@@ -110,9 +111,10 @@ async function seedDatabase() {
     { tenant_idx: 1, space_idx: 1, vehicle_plate: '京B11111', start_offset: -60, months: 3, active: true, confirmed: true },
     { tenant_idx: 2, space_idx: 2, vehicle_plate: '京C22222', start_offset: -45, months: 12, active: true, confirmed: true },
     { tenant_idx: 3, space_idx: 3, vehicle_plate: '京D44444', start_offset: -400, months: 12, active: true, confirmed: true },
-    { tenant_idx: 4, space_idx: 4, vehicle_plate: '京E55555', start_offset: -20, months: 1, active: true, confirmed: true },
     { tenant_idx: 5, space_idx: 5, vehicle_plate: '京F66666', start_offset: -15, months: 3, active: true, confirmed: false },
   ];
+
+  const createdLeases: any[] = [];
 
   leaseConfigs.forEach(config => {
     const tenant = createdTenants[config.tenant_idx];
@@ -132,6 +134,7 @@ async function seedDatabase() {
     });
 
     if (result.success && result.lease) {
+      createdLeases.push(result.lease);
       if (config.confirmed) {
         LeaseService.confirmContract(result.lease.id);
       }
@@ -145,6 +148,79 @@ async function seedDatabase() {
       }
     }
   });
+
+  // =============== 为 A-005 特别构造完整生命周期:原租约(已到期) → 续费租约(生效中) ===============
+  console.log('Creating A-005 full lifecycle demo: original lease (expired) -> renewal lease (active)...');
+  {
+    const a005Space = ParkingSpaceService.getByCode('A-005') || ParkingSpaceService.getAll()[4];
+    const a005Tenant = createdTenants[4]; // 钱七
+    const a005Vehicle = allVehicles.find((v: any) => v.plate_no === '京E55555');
+
+    if (!a005Space || !a005Tenant || !a005Vehicle) {
+      console.log('  WARNING: A-005 prerequisites missing, skip lifecycle demo');
+    } else {
+      // 步骤1: 创建原租约(已到期, 120天前开始, 3个月租期, 已确认, 已到期)
+      const originalStart = addDays(today(), -120);
+      const originalEnd = addMonths(originalStart, 3);
+      const originalResult = LeaseService.create({
+        space_id: a005Space.id,
+        tenant_id: a005Tenant.id,
+        vehicle_id: a005Vehicle.id,
+        start_date: originalStart,
+        end_date: originalEnd,
+        monthly_price: 300,
+        remark: 'A-005 原始租约'
+      });
+
+      if (originalResult.success && originalResult.lease) {
+        LeaseService.confirmContract(originalResult.lease.id);
+        db.prepare('UPDATE leases SET status = ? WHERE id = ?').run('expired', originalResult.lease.id);
+        db.prepare('UPDATE leases SET paid_amount = ? WHERE id = ?').run(900, originalResult.lease.id);
+        createdLeases.push(originalResult.lease);
+
+        // 步骤2: 用 create 创建续费租约(接续原租约结束日, 3个月, 生效中), 并手动写入 lease_renew 事件
+        const renewalStart = originalEnd;
+        const renewalEnd = addMonths(renewalStart, 3);
+
+        const renewalResult = LeaseService.create({
+          space_id: a005Space.id,
+          tenant_id: a005Tenant.id,
+          vehicle_id: a005Vehicle.id,
+          start_date: renewalStart,
+          end_date: renewalEnd,
+          monthly_price: 300,
+          source: 'renew',
+          parent_lease_id: originalResult.lease.id,
+          remark: 'A-005 续费租约'
+        });
+
+        if (renewalResult.success && renewalResult.lease) {
+          // 手动补齐 lease_renew 生命周期事件
+          LifecycleService.addSpaceLifecycleEvent(
+            a005Space.id,
+            'lease_renew',
+            {
+              original_lease_id: originalResult.lease.id,
+              renewal_lease_id: renewalResult.lease.id,
+              start_date: renewalStart,
+              end_date: renewalEnd,
+              monthly_price: 300,
+            },
+            renewalResult.lease.id,
+            undefined,
+            'seed',
+            `续费 ${renewalStart} ~ ${renewalEnd}`
+          );
+
+          LeaseService.confirmContract(renewalResult.lease.id);
+          db.prepare('UPDATE leases SET paid_amount = ? WHERE id = ?').run(900, renewalResult.lease.id);
+          db.prepare('UPDATE parking_spaces SET status = ? WHERE id = ?').run('rented', a005Space.id);
+          createdLeases.push(renewalResult.lease);
+          console.log(`  A-005: original lease (${originalStart} ~ ${originalEnd}) + renewal lease (${renewalStart} ~ ${renewalEnd}) + lease_renew event created.`);
+        }
+      }
+    }
+  }
 
   console.log('Creating arrears...');
   const activeLeases = LeaseService.getAll({ status: 'active' }).list;
@@ -190,7 +266,11 @@ async function seedDatabase() {
   console.log(`- ${ArrearsService.getAll({}).list.length} arrears records`);
 }
 
-seedDatabase().catch(e => {
+seedDatabase().then(() => {
+  db.forceSave();
+  console.log('Database persisted successfully.');
+  process.exit(0);
+}).catch(e => {
   console.error('Seed failed:', e);
   process.exit(1);
 });

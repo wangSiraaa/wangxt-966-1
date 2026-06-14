@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Select, Card, Tag, Timeline, Table, Statistic, Row, Col, Alert, Space, Button, Descriptions, message, Spin } from 'antd';
 import { ArrowLeftOutlined, WarningOutlined } from '@ant-design/icons';
 import api from '../api';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 const statusMap: any = {
   available: { label: '可用', color: 'green' },
@@ -17,14 +17,16 @@ const lockStatusMap: any = {
 };
 
 const lifecycleEventColorMap: any = {
-  create: 'blue',
-  confirm_contract: 'blue',
-  renew: 'green',
-  renewed: 'green',
-  terminate: 'red',
-  cancel: 'red',
+  space_created: 'geekblue',
+  space_frozen: 'magenta',
+  space_unfrozen: 'magenta',
+  lease_create: 'blue',
+  contract_confirmed: 'blue',
+  lease_renew: 'green',
+  lease_terminate: 'red',
+  lease_cancel: 'red',
+  lease_expired: 'orange',
   expired_recovered: 'red',
-  expired: 'orange',
   swap_request: 'cyan',
   swap_completed: 'cyan',
   swap_rejected: 'cyan',
@@ -32,14 +34,16 @@ const lifecycleEventColorMap: any = {
 };
 
 const lifecycleEventLabelMap: any = {
-  create: '创建',
-  confirm_contract: '合同确认',
-  renew: '续费',
-  renewed: '被续费',
-  terminate: '退租',
-  cancel: '取消',
+  space_created: '车位创建',
+  space_frozen: '车位冻结',
+  space_unfrozen: '车位解冻',
+  lease_create: '创建租约',
+  contract_confirmed: '合同确认',
+  lease_renew: '续费',
+  lease_terminate: '退租释放',
+  lease_cancel: '租约取消',
+  lease_expired: '租约到期',
   expired_recovered: '过期回收',
-  expired: '到期',
   swap_request: '调换申请',
   swap_completed: '调换完成',
   swap_rejected: '调换驳回',
@@ -76,6 +80,7 @@ const leaseColumns = [
 
 const SpaceLifecycle: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [spaces, setSpaces] = useState<any[]>([]);
   const [selectedSpaceId, setSelectedSpaceId] = useState<string | undefined>(undefined);
   const [lifecycle, setLifecycle] = useState<any>(null);
@@ -86,6 +91,13 @@ const SpaceLifecycle: React.FC = () => {
   useEffect(() => {
     loadSpaces();
   }, []);
+
+  useEffect(() => {
+    const spaceIdFromUrl = searchParams.get('spaceId');
+    if (spaceIdFromUrl && !selectedSpaceId) {
+      setSelectedSpaceId(spaceIdFromUrl);
+    }
+  }, [searchParams, spaces]);
 
   const loadSpaces = async () => {
     setSpacesLoading(true);
@@ -158,7 +170,7 @@ const SpaceLifecycle: React.FC = () => {
         />
       </div>
 
-      {anomaly?.detected && (
+      {(anomaly?.detected || anomaly?.anomaly) && (
         <Alert
           message="车位锁异常"
           description={anomaly.message || '检测到车位锁状态异常，请及时处理'}
@@ -196,19 +208,43 @@ const SpaceLifecycle: React.FC = () => {
           </Card>
 
           <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-            <Col xs={12} md={6}>
+            <Col xs={12} md={4}>
               <Card>
                 <Statistic title="总租赁次数" value={lifecycle.statistics?.total_rental_count || 0} />
               </Card>
             </Col>
-            <Col xs={12} md={6}>
+            <Col xs={12} md={4}>
               <Card>
                 <Statistic
-                  title="总收入"
+                  title="累计收入"
                   value={lifecycle.statistics?.total_revenue || 0}
                   prefix="¥"
                   precision={2}
                 />
+              </Card>
+            </Col>
+            <Col xs={12} md={4}>
+              <Card>
+                <Statistic
+                  title="累计租赁月数"
+                  value={lifecycle.statistics?.total_lease_months || 0}
+                  suffix="个月"
+                />
+              </Card>
+            </Col>
+            <Col xs={12} md={4}>
+              <Card>
+                <Statistic title="生效中租约" value={lifecycle.statistics?.active_lease_count || 0} valueStyle={{ color: '#3f8600' }} />
+              </Card>
+            </Col>
+            <Col xs={12} md={4}>
+              <Card>
+                <Statistic title="已取消租约" value={lifecycle.statistics?.cancelled_lease_count || 0} valueStyle={{ color: '#cf1322' }} />
+              </Card>
+            </Col>
+            <Col xs={12} md={4}>
+              <Card>
+                <Statistic title="已过期租约" value={lifecycle.statistics?.expired_lease_count || 0} valueStyle={{ color: '#fa8c16' }} />
               </Card>
             </Col>
           </Row>

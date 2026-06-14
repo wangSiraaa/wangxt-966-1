@@ -3,6 +3,7 @@ import { SpaceSwap } from '../types';
 import { generateId, now, today, auditLog, addLeaseTimeline } from '../utils';
 import { LeaseService } from './lease.service';
 import { ParkingSpaceService } from './parkingSpace.service';
+import { LifecycleService } from './lifecycle.service';
 
 export class SpaceSwapService {
   static getAll(params?: {
@@ -105,6 +106,11 @@ export class SpaceSwapService {
 
     auditLog('admin', 'create', 'space_swap', id, null, data, '申请车位调换');
     addLeaseTimeline(data.lease_id, 'swap_request', { swap_id: id, new_space_id: data.new_space_id }, 'admin', '申请车位调换');
+    LifecycleService.addSpaceLifecycleEvent(
+      data.old_space_id, 'swap_request',
+      { swap_id: id, new_space_id: data.new_space_id, reason: data.reason },
+      data.lease_id, data.tenant_id, 'admin', `申请调换至车位`
+    );
 
     return { success: true, swap: this.getById(id)! };
   }
@@ -149,6 +155,17 @@ export class SpaceSwapService {
         old_space_id: swap.old_space_id, 
         new_space_id: swap.new_space_id 
       }, approver, '车位调换完成');
+
+      LifecycleService.addSpaceLifecycleEvent(
+        swap.old_space_id, 'swap_completed',
+        { direction: 'release', new_space_id: swap.new_space_id, swap_id: id },
+        swap.lease_id, swap.tenant_id, approver, '调换释放车位'
+      );
+      LifecycleService.addSpaceLifecycleEvent(
+        swap.new_space_id, 'swap_completed',
+        { direction: 'occupy', old_space_id: swap.old_space_id, swap_id: id },
+        swap.lease_id, swap.tenant_id, approver, '调换占用新车位'
+      );
     }
 
     auditLog(approver, 'approve', 'space_swap', id, swap, this.getById(id), remark || '审批通过');
@@ -173,6 +190,11 @@ export class SpaceSwapService {
     stmt.run(approver, remark || null, now(), id);
 
     addLeaseTimeline(swap.lease_id, 'swap_rejected', { reason: remark }, approver, '车位调换被驳回');
+    LifecycleService.addSpaceLifecycleEvent(
+      swap.old_space_id, 'swap_rejected',
+      { swap_id: id, reason: remark },
+      swap.lease_id, swap.tenant_id, approver, `调换驳回: ${remark || '无原因'}`
+    );
     auditLog(approver, 'reject', 'space_swap', id, swap, this.getById(id), remark || '审批驳回');
 
     return { success: true, swap: this.getById(id)! };

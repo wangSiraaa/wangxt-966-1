@@ -93,17 +93,21 @@ function saveDatabase() {
     clearTimeout(saveTimeout);
   }
   saveTimeout = setTimeout(() => {
-    try {
-      if (!database) return;
-      const data = database.export();
-      const buffer = Buffer.from(data);
-      const tmpPath = dbPath + '.tmp';
-      fs.writeFileSync(tmpPath, buffer);
-      fs.renameSync(tmpPath, dbPath);
-    } catch (e) {
-      console.error('Failed to save database:', e);
-    }
+    forceSaveDatabase();
   }, 100);
+}
+
+function forceSaveDatabase() {
+  try {
+    if (!database) return;
+    const data = database.export();
+    const buffer = Buffer.from(data);
+    const tmpPath = dbPath + '.tmp';
+    fs.writeFileSync(tmpPath, buffer);
+    fs.renameSync(tmpPath, dbPath);
+  } catch (e) {
+    console.error('Failed to save database:', e);
+  }
 }
 
 export async function initDatabase(): Promise<void> {
@@ -385,6 +389,7 @@ export const db = {
   pragma,
   getDatabase: () => database,
   save: saveDatabase,
+  forceSave: forceSaveDatabase,
   isInitialized: () => database !== null,
 };
 

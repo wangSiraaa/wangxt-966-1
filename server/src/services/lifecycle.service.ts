@@ -302,50 +302,116 @@ export class LifecycleService {
       WHERE sl.space_id = ?
       ORDER BY sl.created_at ASC
     `);
-    return stmt.all(spaceId);
+    const rows = stmt.all(spaceId);
+    return rows.map((row: any) => ({
+      ...row,
+      event_data: row.event_data ? JSON.parse(row.event_data) : null,
+    }));
   }
 
   static getSpaceFullLifecycle(spaceId: string): {
     space: any;
     lifecycle_logs: any[];
     leases: any[];
-    total_rental_count: number;
-    total_revenue: number;
+    statistics: {
+      total_rental_count: number;
+      total_revenue: number;
+      total_lease_months: number;
+      active_lease_count: number;
+      cancelled_lease_count: number;
+      expired_lease_count: number;
+    };
   } | null {
     const space = ParkingSpaceService.getById(spaceId);
     if (!space) return null;
 
     const lifecycleLogs = this.getSpaceLifecycle(spaceId);
 
-    const leasesStmt = db.prepare('SELECT * FROM leases WHERE space_id = ? ORDER BY start_date ASC');
-    const leases = leasesStmt.all(spaceId);
+    const leasesStmt = db.prepare(`
+      SELECT l.*,
+             t.id as tenant_id, t.name as tenant_name, t.phone as tenant_phone,
+             v.id as vehicle_id, v.plate_no as vehicle_plate_no, v.plate_color as vehicle_plate_color
+      FROM leases l
+      LEFT JOIN tenants t ON l.tenant_id = t.id
+      LEFT JOIN vehicles v ON l.vehicle_id = v.id
+      WHERE l.space_id = ?
+      ORDER BY l.start_date ASC
+    `);
+    const rawLeases = leasesStmt.all(spaceId);
+
+    const leases = rawLeases.map((l: any) => ({
+      id: l.id,
+      space_id: l.space_id,
+      tenant_id: l.tenant_id,
+      vehicle_id: l.vehicle_id,
+      start_date: l.start_date,
+      end_date: l.end_date,
+      monthly_price: l.monthly_price,
+      total_amount: l.total_amount,
+      paid_amount: l.paid_amount,
+      status: l.status,
+      contract_status: l.contract_status,
+      source: l.source,
+      parent_lease_id: l.parent_lease_id,
+      remark: l.remark,
+      created_at: l.created_at,
+      updated_at: l.updated_at,
+      tenant: {
+        id: l.tenant_id,
+        name: l.tenant_name,
+        phone: l.tenant_phone,
+      },
+      vehicle: {
+        id: l.vehicle_id,
+        plate_no: l.vehicle_plate_no,
+        plate_color: l.vehicle_plate_color,
+      },
+    }));
 
     let totalRevenue = 0;
+    let totalLeaseMonths = 0;
+    let activeCount = 0;
+    let cancelledCount = 0;
+    let expiredCount = 0;
+
     for (const lease of leases) {
-      totalRevenue += (lease as any).paid_amount || 0;
+      totalRevenue += lease.paid_amount || 0;
+      const months = Math.max(1, Math.ceil(
+        (new Date(lease.end_date).getTime() - new Date(lease.start_date).getTime()) / (30 * 24 * 60 * 60 * 1000)
+      ));
+      totalLeaseMonths += months;
+      if (lease.status === 'active') activeCount++;
+      else if (lease.status === 'cancelled') cancelledCount++;
+      else if (lease.status === 'expired') expiredCount++;
     }
 
     return {
       space,
       lifecycle_logs: lifecycleLogs,
       leases,
-      total_rental_count: leases.length,
-      total_revenue: totalRevenue,
+      statistics: {
+        total_rental_count: leases.length,
+        total_revenue: totalRevenue,
+        total_lease_months: totalLeaseMonths,
+        active_lease_count: activeCount,
+        cancelled_lease_count: cancelledCount,
+        expired_lease_count: expiredCount,
+      },
     };
   }
 
-  static detectLockAnomaly(spaceId: string): { anomaly: boolean; type?: string; message?: string } {
+  static detectLockAnomaly(spaceId: string): { detected: boolean; anomaly?: boolean; type?: string; message?: string } {
     const space = ParkingSpaceService.getById(spaceId);
-    if (!space) return { anomaly: false };
+    if (!space) return { detected: false, anomaly: false };
 
     if (space.status === 'rented' && space.lock_status === 'unlocked') {
-      return { anomaly: true, type: 'rented_unlocked', message: '车位已出租但锁未锁定' };
+      return { detected: true, anomaly: true, type: 'rented_unlocked', message: '车位已出租但锁未锁定' };
     }
     if (space.status === 'available' && space.lock_status === 'locked') {
-      return { anomaly: true, type: 'available_locked', message: '车位空闲但锁已锁定' };
+      return { detected: true, anomaly: true, type: 'available_locked', message: '车位空闲但锁已锁定' };
     }
 
-    return { anomaly: false };
+    return { detected: false, anomaly: false };
   }
 
   static detectFamilyMultiCarMerge(tenantId: string): {
